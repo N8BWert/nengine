@@ -1,0 +1,16 @@
+[package]
+name = "nengine-base"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+members = [
+    "nengine",
+    "nengine-macros"
+]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+nengine = { path = "nengine" }
+nengine-macros = { path = "nengine-macros" }
