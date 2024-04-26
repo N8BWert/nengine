@@ -22,7 +22,7 @@ pub struct World {
 }
 ```
 
-Which likely translates to something similar to:
+Which translates into:
 
 ```rust
 pub struct World {
@@ -41,19 +41,22 @@ For systems, I'd like to make it such that the iterator + filter is auto generat
 
 ```rust
 #[system(world=DinosaurWorld, read=[object_velocity], write=position)]
-fn position_update_system(ctx: position_update_system::Context) {
-    *ctx.position += ctx.object_velocity;
+fn position_update_system() {
+    *position = (position.0 + object_velocity.0, position.1 + object_velocity.1);
 }
 ```
 
-Which would likely expand to:
+Which would expand to:
 
 ```rust
 fn position_update_system(world: Arc<DinosaurWorld>) {
-    let mut positions = world.positions.read().unwrap();
-    let object_velocities = world.object_velocities.write().unwrap();
-    for (position, velocity) in positions.iter_mut().zip(object_velocities.iter()).filter(|v| v.0.is_some() && v.1.is_some()) {
-        *position += velocity;
+    let object_velocity = world.object_velocity.read().unwrap();
+    let mut position = world.positions.write().unwrap();
+    for (object_velocity, position) in object_velocity.iter().zip(position.iter_mut()).filter(|v| v.0.is_some() && v.1.is_some()) {
+        let object_velocity = object_velocity.as_ref().unwrap();
+        let mut position = position.as_mut().unwrap();
+
+        position = (position.0 + object_velocity.0, position.1 + object_velocity.1);
     }
 }
 ```
@@ -61,22 +64,21 @@ fn position_update_system(world: Arc<DinosaurWorld>) {
 It would also likely be useful to add some sort of filter to allow users to filter not-only that some component exists, but also that the component has some value.  For example take the following situation:
 
 ```rust
-#[world(
-    components=[
-        (position, (u32, u32), dense),
-        (damage_zone, (u32, u32), dense),
-        (health, u32, health)
-    ]
-)]
-pub struct World {}
+#[world]
+pub struct World {
+    position: (u32, u32),
+    damage_zone: (u32, u32),
+    health: u32,
+}
 
 #[system(
+    world=World,
     write=[health],
     read=[position, damage_zone],
     filter="position == damage_zone"
 )]
-fn position_damage_system(ctx: position_damage_system::Context) {
-    ctx.health -= 1;
+fn position_damage_system() {
+    health -= 1;
 }
 ```
 
@@ -84,7 +86,7 @@ Which would expand to:
 
 ```rust
 pub struct World {
-    entities: Arc<Vec<u32>>,
+    entities: Arc<RwLock<Vec<u32>>>,
 
     positions: Arc<RwLock<Vec<Option<(u32, u32)>>>>,
     damage_zones: Arc<RwLock<Vec<Option<(u32, u32)>>>>,
@@ -100,5 +102,3 @@ fn position_damage_system(world: Arc<World>) {
     }
 }
 ```
-
-I'm not currently 100% certain I can do this because I think I'll need to write some runtime or something to actually insert the world, but this is kind of my goal.
