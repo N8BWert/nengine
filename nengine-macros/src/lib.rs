@@ -2,7 +2,7 @@ extern crate proc_macro;
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::{format_ident, quote};
-use syn::{parse::{Parse, ParseStream, Result}, parse_macro_input, Token, Block, Error, Expr, FnArg, Ident, ItemFn, ItemStruct};
+use syn::{parse::{Parse, ParseStream, Result}, parse_macro_input, Block, Error, Expr, ExprBinary, FnArg, Ident, ItemFn, ItemStruct, Token};
 
 #[proc_macro_attribute]
 pub fn world(_attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -115,6 +115,7 @@ struct FunctionArgs {
     world_type: Ident,
     read_components: Vec<Ident>,
     write_components: Vec<Ident>,
+    filters: Vec<ExprBinary>,
 }
 
 impl Parse for FunctionArgs {
@@ -122,6 +123,7 @@ impl Parse for FunctionArgs {
         let mut world_type: Option<Ident> = None;
         let mut read_components: Vec<Ident> = Vec::new();
         let mut write_components: Vec<Ident> = Vec::new();
+        let mut filters: Vec<ExprBinary> = Vec::new();
 
         let parts = input.parse_terminated(Expr::parse, Token![,])?;
         for part in parts.iter() {
@@ -177,11 +179,20 @@ impl Parse for FunctionArgs {
                                         _ => (),
                                     }
                                 },
+                                "filter" => {
+                                    if let Expr::Array(array) = assignment.right.as_ref() {
+                                        for element in array.elems.iter() {
+                                            if let Expr::Binary(binary) = element {
+                                                filters.push(binary.clone());
+                                            }
+                                        }
+                                    }
+                                }
                                 _ => (),
                             }
                         }
                     },
-                    _ => println!("Nope"),
+                    _ => return Err(Error::new(Span::call_site(), "Invalid Parameter to system macro")),
                 }
             } else {
                 return Err(Error::new(Span::call_site(), "Expected Assignments in Attribute"));
@@ -196,6 +207,7 @@ impl Parse for FunctionArgs {
             world_type: world_type.unwrap(),
             read_components,
             write_components,
+            filters,
         })
     }
 }
@@ -295,6 +307,14 @@ pub fn system(attr: TokenStream, item: TokenStream) -> TokenStream {
     }
 
     // TODO: Add a filter string option
+    let mut filter_condition = quote!{ };
+    if function_args.filters.len() > 0 {
+        let first_filter = &function_args.filters[0];
+        filter_condition = quote!{ if #first_filter };
+        for filter in function_args.filters[1..].iter() {
+            filter_condition = quote!{ #filter_condition && #filter };
+        }
+    }
 
 
     TokenStream::from(quote!{
@@ -307,7 +327,9 @@ pub fn system(attr: TokenStream, item: TokenStream) -> TokenStream {
                 #(let #read_components = #read_components.as_ref().unwrap());*;
                 #(let mut #write_components = #write_components.as_mut().unwrap());*;
 
-                #body
+                #filter_condition {
+                    #body
+                }
             }
         }
     })

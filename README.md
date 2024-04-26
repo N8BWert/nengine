@@ -82,7 +82,7 @@ fn position_damage_system() {
 }
 ```
 
-Which would expand to:
+Which expands to:
 
 ```rust
 pub struct World {
