@@ -50,20 +50,23 @@ impl ExpectedWorld {
 
 #[system(world=CreatedWorld, read=[player_velocity], write=[position])]
 fn position_update_system() {
-    *position = Some((
-        position.unwrap().0 + player_velocity.unwrap().0,
-        position.unwrap().1 + player_velocity.unwrap().1,
-    ))
+    *position = (
+        position.0 + player_velocity.0,
+        position.1 + player_velocity.1,
+    );
 }
 
 fn expected_position_update_system(world: std::sync::Arc<CreatedWorld>) {
     let player_velocity = world.player_velocity.read().unwrap();
     let mut position = world.position.write().unwrap();
     for (player_velocity, position) in player_velocity.iter().zip(position.iter_mut()).filter(|v| v.0.is_some() && v.1.is_some()) {
-        *position = Some((
-            position.unwrap().0 + player_velocity.unwrap().0,
-            position.unwrap().1 + player_velocity.unwrap().1,
-        ))
+        let player_velocity = player_velocity.as_ref().unwrap();
+        let position = position.as_mut().unwrap();
+
+        *position = (
+            position.0 + player_velocity.0,
+            position.1 + player_velocity.1,
+        );
     }
 }
 

@@ -1,8 +1,8 @@
 extern crate proc_macro;
 use proc_macro::TokenStream;
 use proc_macro2::Span;
-use quote::{format_ident, quote, ToTokens};
-use syn::{parse::{Parse, ParseStream, Result}, parse_macro_input, Token, Block, Error, Expr, FnArg, Ident, ItemFn, ItemStruct, Pat, PatType};
+use quote::{format_ident, quote};
+use syn::{parse::{Parse, ParseStream, Result}, parse_macro_input, Token, Block, Error, Expr, FnArg, Ident, ItemFn, ItemStruct};
 
 #[proc_macro_attribute]
 pub fn world(_attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -19,8 +19,11 @@ pub fn world(_attr: TokenStream, item: TokenStream) -> TokenStream {
         }
     }
 
+    let plural_identifiers: Vec<Ident> = field_identifiers.iter().map(|v| format_ident!("{}s", v)).collect();
     let setter_identifiers: Vec<Ident> = field_identifiers.iter().map(|v| format_ident!("set_{}", v)).collect();
+    let set_many_identifiers: Vec<Ident> = field_identifiers.iter().map(|v| format_ident!("set_{}s", v)).collect();
     let clear_identifiers: Vec<Ident> = field_identifiers.iter().map(|v| format_ident!("clear_{}", v)).collect();
+    let clear_many_identifiers: Vec<Ident> = field_identifiers.iter().map(|v| format_ident!("clear{}s", v)).collect();
 
     TokenStream::from(quote!{
         pub struct #item_name {
@@ -29,11 +32,11 @@ pub fn world(_attr: TokenStream, item: TokenStream) -> TokenStream {
         }
 
         impl #item_name {
-            pub fn new() -> Self {
-                Self {
+            pub fn new() -> std::sync::Arc<std::sync::RwLock<Self>> {
+                std::sync::Arc::new(std::sync::RwLock::new(Self {
                     entities: std::sync::Arc::new(std::sync::RwLock::new(std::vec::Vec::new())),
                     #(#field_identifiers: std::sync::Arc::new(std::sync::RwLock::new(std::vec::Vec::new()))),*
-                }
+                }))
             }
 
             pub fn add_entity(&mut self) -> u32 {
@@ -43,12 +46,42 @@ pub fn world(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 entity_id
             }
 
+            pub fn add_entities(&mut self, entities: u32) -> Vec<u32> {
+                let mut new_entity_ids = Vec::with_capacity(entities as usize);
+                let mut entities_list = self.entities.write().unwrap();
+                #(let mut #field_identifiers = self.#field_identifiers.write().unwrap());*;
+                let start_len = entities_list.len();
+
+                for i in 0..entities {
+                    let new_entity_id = start_len as u32 + i;
+                    entities_list.push(new_entity_id);
+                     #(#field_identifiers.push(None));*;
+                     new_entity_ids.push(new_entity_id);
+                }
+
+                new_entity_ids
+            }
+
             #(pub fn #setter_identifiers(&mut self, entity_id: u32, #field_identifiers: #field_types) {
                 self.#field_identifiers.write().unwrap()[entity_id as usize] = Some(#field_identifiers);
             })*
 
+            #(pub fn #set_many_identifiers(&mut self, entity_ids: &Vec<u32>, mut #plural_identifiers: Vec<#field_types>) {
+                let mut component = self.#field_identifiers.write().unwrap();
+                for (i, #field_identifiers) in #plural_identifiers.drain(..).enumerate() {
+                    component[i] = Some(#field_identifiers);
+                }
+            })*
+
             #(pub fn #clear_identifiers(&mut self, entity_id: u32) {
                 self.#field_identifiers.write().unwrap()[entity_id as usize] = None;
+            })*
+
+            #(pub fn #clear_many_identifiers(&mut self, entity_ids: &Vec<u32>) {
+                let mut component = self.#field_identifiers.write().unwrap();
+                for entity_id in entity_ids {
+                    component[*entity_id as usize] = None;
+                }
             })*
         }
     })
@@ -221,7 +254,7 @@ pub fn system(attr: TokenStream, item: TokenStream) -> TokenStream {
                 let write_component2 = &write_components[1];
                 (
                     quote!{ (#write_component1, #write_component2) },
-                    quote!{#write_component1.iter_mut()().zip(#write_component2.iter_mut())}
+                    quote!{#write_component1.iter_mut().zip(#write_component2.iter_mut())}
                 )
             },
         };
@@ -238,14 +271,42 @@ pub fn system(attr: TokenStream, item: TokenStream) -> TokenStream {
         }
     }
 
-    // TODO: Write Filter Part Macro
+    let mut filter = quote!{ };
+    let combined_length = read_components.len() + write_components.len();
+    match combined_length {
+        0 => (),
+        1 => filter = quote!{ .filter(|v| v.is_some()) },
+        2 => filter = quote!{ .filter(|v| v.0.is_some() && v.1.is_some()) },
+        _ => {
+            filter = quote!{ v.1.is_some() };
+            for i in 1..combined_length {
+                filter = quote!{ #filter && v };
+                for _ in 0..i {
+                    filter = quote!{ #filter.0 };
+                }
+                if i == combined_length - 1 {
+                    filter = quote!{ #filter.is_some() };
+                } else {
+                    filter = quote!{ #filter.1.is_some() };
+                }
+            }
+            filter = quote!{ .filter(|v| #filter) };
+        },
+    }
+
+    // TODO: Add a filter string option
+
 
     TokenStream::from(quote!{
-        pub fn #fn_name(world: std::sync::Arc<#world_type>, #(#fn_args),*) {
+        pub fn #fn_name(world: std::sync::Arc<std::sync::RwLock<#world_type>>, #(#fn_args),*) {
+            let world = world.read().unwrap();
             #(let #read_components = world.#read_components.read().unwrap());*;
             #(let mut #write_components = world.#write_components.write().unwrap());*;
 
-            for #items in #iterators {
+            for #items in #iterators #filter {
+                #(let #read_components = #read_components.as_ref().unwrap());*;
+                #(let mut #write_components = #write_components.as_mut().unwrap());*;
+
                 #body
             }
         }
