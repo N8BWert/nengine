@@ -12,7 +12,7 @@ pub struct FilterWorld {
     health: u32,
 }
 
-#[system(world=FilterWorld, read=[health], filter=[health < &2])]
+#[system(world=FilterWorld, read=[health], filter=[*health < 2])]
 fn log_dying_entities() {
     println!("An Entity Is Dying");
 }

@@ -306,7 +306,6 @@ pub fn system(attr: TokenStream, item: TokenStream) -> TokenStream {
         },
     }
 
-    // TODO: Add a filter string option
     let mut filter_condition = quote!{ };
     if function_args.filters.len() > 0 {
         let first_filter = &function_args.filters[0];
