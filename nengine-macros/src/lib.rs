@@ -150,6 +150,9 @@ pub fn world(attr: TokenStream, item: TokenStream) -> TokenStream {
                 }
             })*
         }
+
+        unsafe impl Send for #item_name {}
+        unsafe impl Sync for #item_name {}
     })
 }
 
