@@ -12,6 +12,9 @@ members = [
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+clap = { version = "4.5.4", features = ["derive"] }
+crossterm = "0.27.0"
 nengine = { path = "nengine" }
 nengine-macros = { path = "nengine-macros" }
 rand = "0.8.5"
+ratatui = "0.26.2"

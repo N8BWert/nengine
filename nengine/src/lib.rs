@@ -111,7 +111,7 @@ impl<WORLD: Send + Sync + 'static, E: Debug + 'static> Engine<WORLD, E> {
 
             let next_system_start_time = self.scheduling_queue.peek().unwrap().priority;
             if delta_time > next_system_start_time {
-                let sleep_time = next_system_start_time - current_time;
+                let sleep_time = next_system_start_time.saturating_sub(current_time);
                 thread::sleep(Duration::from_micros(sleep_time as u64));
             }
 
