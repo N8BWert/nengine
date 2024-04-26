@@ -4,18 +4,72 @@ use proc_macro2::Span;
 use quote::{format_ident, quote};
 use syn::{parse::{Parse, ParseStream, Result}, parse_macro_input, Block, Error, Expr, ExprBinary, FnArg, Ident, ItemFn, ItemStruct, Token};
 
+use std::collections::HashSet;
+
+struct IgnoreArgs {
+    ignore_identifiers: HashSet<String>,
+}
+
+impl Parse for IgnoreArgs {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let mut ignore_identifiers = HashSet::new();
+
+        let parts = input.parse_terminated(Expr::parse, Token![,])?;
+        for part in parts.iter() {
+            if let Expr::Assign(assignment) = part {
+                if let Expr::Path(path) = assignment.left.as_ref() {
+                    if let Some(segment) = path.path.segments.first() {
+                        if segment.ident.to_string().as_str() == "singular" {
+                            match assignment.right.as_ref() {
+                                Expr::Path(path) => {
+                                    if let Some(segment) = path.path.segments.first() {
+                                        ignore_identifiers.insert(segment.ident.to_string());
+                                    }
+                                },
+                                Expr::Array(array) => {
+                                    for element in array.elems.iter() {
+                                        if let Expr::Path(path) = element {
+                                            if let Some(segment) = path.path.segments.first() {
+                                                ignore_identifiers.insert(segment.ident.to_string());
+                                            }
+                                        }
+                                    }
+                                },
+                                _ => (),
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(IgnoreArgs {
+            ignore_identifiers,
+        })
+    }
+}
+
 #[proc_macro_attribute]
-pub fn world(_attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn world(attr: TokenStream, item: TokenStream) -> TokenStream {
     let item = parse_macro_input!(item as ItemStruct);
     let item_name = item.ident;
+
+    let ignore_args = parse_macro_input!(attr as IgnoreArgs);
 
     let fields = item.fields;
     let mut field_identifiers = Vec::new();
     let mut field_types = Vec::new();
+    let mut ignore_identifiers = Vec::new();
+    let mut ignore_types = Vec::new();
     for field in fields.iter() {
         if let Some(ident) = &field.ident {
-            field_identifiers.push(ident);
-            field_types.push(&field.ty);
+            if ignore_args.ignore_identifiers.contains(&ident.to_string()) {
+                ignore_identifiers.push(ident);
+                ignore_types.push(&field.ty);
+            } else {
+                field_identifiers.push(ident);
+                field_types.push(&field.ty);
+            }
         }
     }
 
@@ -24,18 +78,22 @@ pub fn world(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let set_many_identifiers: Vec<Ident> = field_identifiers.iter().map(|v| format_ident!("set_{}s", v)).collect();
     let clear_identifiers: Vec<Ident> = field_identifiers.iter().map(|v| format_ident!("clear_{}", v)).collect();
     let clear_many_identifiers: Vec<Ident> = field_identifiers.iter().map(|v| format_ident!("clear{}s", v)).collect();
+    let set_ignore_identifiers: Vec<Ident> = ignore_identifiers.iter().map(|v| format_ident!("set_{}", v)).collect();
+    let clear_ignore_identifiers: Vec<Ident> = ignore_identifiers.iter().map(|v| format_ident!("clear_{}", v)).collect();
 
     TokenStream::from(quote!{
         pub struct #item_name {
             entities: std::sync::Arc<std::sync::RwLock<std::vec::Vec<u32>>>,
-            #(pub #field_identifiers: std::sync::Arc<std::sync::RwLock<std::vec::Vec<std::option::Option<#field_types>>>>),*
+            #(pub #field_identifiers: std::sync::Arc<std::sync::RwLock<std::vec::Vec<std::option::Option<#field_types>>>>),*,
+            #(pub #ignore_identifiers: std::sync::Arc<std::sync::RwLock<std::option::Option<#ignore_types>>>),*
         }
 
         impl #item_name {
             pub fn new() -> std::sync::Arc<std::sync::RwLock<Self>> {
                 std::sync::Arc::new(std::sync::RwLock::new(Self {
                     entities: std::sync::Arc::new(std::sync::RwLock::new(std::vec::Vec::new())),
-                    #(#field_identifiers: std::sync::Arc::new(std::sync::RwLock::new(std::vec::Vec::new()))),*
+                    #(#field_identifiers: std::sync::Arc::new(std::sync::RwLock::new(std::vec::Vec::new()))),*,
+                    #(#ignore_identifiers: std::sync::Arc::new(std::sync::RwLock::new(None))),*
                 }))
             }
 
@@ -66,6 +124,10 @@ pub fn world(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 self.#field_identifiers.write().unwrap()[entity_id as usize] = Some(#field_identifiers);
             })*
 
+            #(pub fn #set_ignore_identifiers(&mut self, #ignore_identifiers: #ignore_types) {
+                *self.#ignore_identifiers.write().unwrap() = Some(#ignore_identifiers);
+            })*
+
             #(pub fn #set_many_identifiers(&mut self, entity_ids: &Vec<u32>, mut #plural_identifiers: Vec<#field_types>) {
                 let mut component = self.#field_identifiers.write().unwrap();
                 for (i, #field_identifiers) in #plural_identifiers.drain(..).enumerate() {
@@ -75,6 +137,10 @@ pub fn world(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
             #(pub fn #clear_identifiers(&mut self, entity_id: u32) {
                 self.#field_identifiers.write().unwrap()[entity_id as usize] = None;
+            })*
+
+            #(pub fn #clear_ignore_identifiers(&mut self) {
+                *self.#ignore_identifiers.write().unwrap() = None;
             })*
 
             #(pub fn #clear_many_identifiers(&mut self, entity_ids: &Vec<u32>) {
@@ -114,7 +180,9 @@ impl Parse for WorldArgs {
 struct FunctionArgs {
     world_type: Ident,
     read_components: Vec<Ident>,
+    global_read_components: Vec<Ident>,
     write_components: Vec<Ident>,
+    global_write_components: Vec<Ident>,
     filters: Vec<ExprBinary>,
 }
 
@@ -122,7 +190,9 @@ impl Parse for FunctionArgs {
     fn parse(input: ParseStream) -> Result<Self> {
         let mut world_type: Option<Ident> = None;
         let mut read_components: Vec<Ident> = Vec::new();
+        let mut global_read_components: Vec<Ident> = Vec::new();
         let mut write_components: Vec<Ident> = Vec::new();
+        let mut global_write_components: Vec<Ident> = Vec::new();
         let mut filters: Vec<ExprBinary> = Vec::new();
 
         let parts = input.parse_terminated(Expr::parse, Token![,])?;
@@ -187,7 +257,45 @@ impl Parse for FunctionArgs {
                                             }
                                         }
                                     }
-                                }
+                                },
+                                "_read" => {
+                                    match assignment.right.as_ref() {
+                                        Expr::Path(path) => {
+                                            if let Some(segment) = path.path.segments.first() {
+                                                global_read_components.push(segment.ident.clone());
+                                            }
+                                        },
+                                        Expr::Array(array) => {
+                                            for element in array.elems.iter() {
+                                                if let Expr::Path(path) = element {
+                                                    if let Some(segment) = path.path.segments.first() {
+                                                        global_read_components.push(segment.ident.clone());
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        _ => (),
+                                    }
+                                },
+                                "_write" => {
+                                    match assignment.right.as_ref() {
+                                        Expr::Path(path) => {
+                                            if let Some(segment) = path.path.segments.first() {
+                                                global_write_components.push(segment.ident.clone());
+                                            }
+                                        },
+                                        Expr::Array(array) => {
+                                            for element in array.elems.iter() {
+                                                if let Expr::Path(path) = element {
+                                                    if let Some(segment) = path.path.segments.first() {
+                                                        global_write_components.push(segment.ident.clone());
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        _ => (),
+                                    }
+                                },
                                 _ => (),
                             }
                         }
@@ -206,7 +314,9 @@ impl Parse for FunctionArgs {
         Ok(FunctionArgs {
             world_type: world_type.unwrap(),
             read_components,
+            global_read_components,
             write_components,
+            global_write_components,
             filters,
         })
     }
@@ -222,7 +332,11 @@ pub fn system(attr: TokenStream, item: TokenStream) -> TokenStream {
     let body = world_args.body;
 
     let read_components = function_args.read_components;
+    let global_read_components = function_args.global_read_components;
+    let global_read_refs: Vec<Ident> = global_read_components.iter().map(|v| format_ident!("{}_ref", v)).collect();
     let write_components = function_args.write_components;
+    let global_write_components = function_args.global_write_components;
+    let global_write_refs: Vec<Ident> = global_write_components.iter().map(|v| format_ident!("{}_ref", v)).collect();
     let world_type = function_args.world_type;
 
     let (mut items, mut iterators) = match read_components.len() {
@@ -315,13 +429,8 @@ pub fn system(attr: TokenStream, item: TokenStream) -> TokenStream {
         }
     }
 
-
-    TokenStream::from(quote!{
-        pub fn #fn_name(world: std::sync::Arc<std::sync::RwLock<#world_type>>, #(#fn_args),*) {
-            let world = world.read().unwrap();
-            #(let #read_components = world.#read_components.read().unwrap());*;
-            #(let mut #write_components = world.#write_components.write().unwrap());*;
-
+    let body = if read_components.len() + write_components.len() > 0 {
+        quote!{ 
             for #items in #iterators #filter {
                 #(let #read_components = #read_components.as_ref().unwrap());*;
                 #(let mut #write_components = #write_components.as_mut().unwrap());*;
@@ -330,6 +439,23 @@ pub fn system(attr: TokenStream, item: TokenStream) -> TokenStream {
                     #body
                 }
             }
+        }
+    } else {
+        quote!{ #body }
+    };
+
+
+    TokenStream::from(quote!{
+        pub fn #fn_name(world: std::sync::Arc<std::sync::RwLock<#world_type>>, #(#fn_args),*) {
+            let world = world.read().unwrap();
+            #(let #read_components = world.#read_components.read().unwrap());*;
+            #(let mut #write_components = world.#write_components.write().unwrap());*;
+            #(let #global_read_refs = world.#global_read_components.read().unwrap());*;
+            #(let #global_read_components = #global_read_refs.as_ref().expect("Global Components must not be None"));*;
+            #(let mut #global_write_refs = world.#global_write_components.write().unwrap());*;
+            #(let mut #global_write_components = #global_write_refs.as_mut().expect("Global Components must not be None"));*;
+
+            #body
         }
     })
 }

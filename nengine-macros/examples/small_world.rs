@@ -18,7 +18,7 @@ pub fn read_positions() {
 #[system(world=SmallWorld, write=[player_velocity])]
 pub fn randomize_player_velocities() {
     if player_velocity.0 == 0.0 {
-        player_velocity.0 == 1.0;
+        player_velocity.0 = 1.0;
     } else {
         player_velocity.0 = 0.0;
     }

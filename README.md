@@ -10,15 +10,16 @@ The main goal of the project is to make the ECS system be created incredibly eas
 
 ### Components
 
-The components macro should make it easy to define the list of components to be used in a project.  Probably something like as follows:
+The components macro should make it easy to define the list of components to be used in a project.  It might also be useful to have items that are singular and not duplicated for every entity. Probably something like as follows:
 
 ```rust
-#[world]
+#[world(singular=[canvas])]
 pub struct World {
     position: (f32, f32),
     player_velocity: (f32, f32),
     object_velocity: (f32, f32),
     sprite: Sprite,
+    canvas: [[bool; 10]; 10],
 }
 ```
 
@@ -27,6 +28,8 @@ Which translates into:
 ```rust
 pub struct World {
     entities: Arc<RwLock<Vec<u32>>>,
+
+    pub canvas: Arc<RwLock<Option<[[bool; 10]; 10]>>>,
 
     pub position: Arc<RwLock<Vec<Option<(f32, f32)>>>>,
     pub player_velocity: Arc<RwLock<Vec<Option<(f32, f32)>>>>,
@@ -102,3 +105,14 @@ fn position_damage_system(world: Arc<World>) {
     }
 }
 ```
+
+It is also possible to refer to singular components in systems by using _read and _write as their identifiers.  For example:
+
+```rust
+#[system(world=World, _read=[canvas], _write=[exit])]
+fn read_canvas_and_exit() {
+    ...
+}
+```
+
+Would allows the user to access canvas (through reading) and write to exit
