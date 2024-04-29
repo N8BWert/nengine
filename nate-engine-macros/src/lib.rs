@@ -115,7 +115,7 @@ pub fn world(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     TokenStream::from(quote!{
         pub struct #item_name {
-            entities: std::sync::Arc<std::sync::RwLock<std::vec::Vec<u32>>>,
+            entities: std::sync::Arc<std::sync::RwLock<std::vec::Vec<usize>>>,
             #entity_fields
             #global_fields
         }
@@ -129,21 +129,21 @@ pub fn world(attr: TokenStream, item: TokenStream) -> TokenStream {
                 }))
             }
 
-            pub fn add_entity(&mut self) -> u32 {
-                let entity_id = self.entities.read().unwrap().len() as u32;
+            pub fn add_entity(&mut self) -> usize {
+                let entity_id = self.entities.read().unwrap().len() as usize;
                 self.entities.write().unwrap().push(entity_id);
                 #(self.#field_identifiers.write().unwrap().push(None));*;
                 entity_id
             }
 
-            pub fn add_entities(&mut self, entities: u32) -> Vec<u32> {
+            pub fn add_entities(&mut self, entities: usize) -> Vec<usize> {
                 let mut new_entity_ids = Vec::with_capacity(entities as usize);
                 let mut entities_list = self.entities.write().unwrap();
                 #(let mut #field_identifiers = self.#field_identifiers.write().unwrap());*;
                 let start_len = entities_list.len();
 
                 for i in 0..entities {
-                    let new_entity_id = start_len as u32 + i;
+                    let new_entity_id = start_len + i;
                     entities_list.push(new_entity_id);
                      #(#field_identifiers.push(None));*;
                      new_entity_ids.push(new_entity_id);
@@ -152,19 +152,19 @@ pub fn world(attr: TokenStream, item: TokenStream) -> TokenStream {
                 new_entity_ids
             }
 
-            pub fn remove_entity(&mut self, entity_id: u32) {
+            pub fn remove_entity(&mut self, entity_id: usize) {
                 self.entities.write().unwrap().remove(entity_id as usize);
                 #(self.#field_identifiers.write().unwrap().remove(entity_id as usize));*;
             }
 
-            pub fn remove_entities(&mut self, entity_ids: Vec<u32>) {
+            pub fn remove_entities(&mut self, entity_ids: Vec<usize>) {
                 for entity_id in entity_ids {
                     self.entities.write().unwrap().remove(entity_id as usize);
                     #(self.#field_identifiers.write().unwrap().remove(entity_id as usize));*;
                 }
             }
 
-            #(pub fn #setter_identifiers(&mut self, entity_id: u32, #field_identifiers: #field_types) {
+            #(pub fn #setter_identifiers(&mut self, entity_id: usize, #field_identifiers: #field_types) {
                 self.#field_identifiers.write().unwrap()[entity_id as usize] = Some(#field_identifiers);
             })*
 
@@ -172,14 +172,14 @@ pub fn world(attr: TokenStream, item: TokenStream) -> TokenStream {
                 *self.#ignore_identifiers.write().unwrap() = Some(#ignore_identifiers);
             })*
 
-            #(pub fn #set_many_identifiers(&mut self, entity_ids: &Vec<u32>, mut #plural_identifiers: Vec<#field_types>) {
+            #(pub fn #set_many_identifiers(&mut self, entity_ids: &Vec<usize>, mut #plural_identifiers: Vec<#field_types>) {
                 let mut component = self.#field_identifiers.write().unwrap();
                 for (i, #field_identifiers) in #plural_identifiers.drain(..).enumerate() {
                     component[i] = Some(#field_identifiers);
                 }
             })*
 
-            #(pub fn #clear_identifiers(&mut self, entity_id: u32) {
+            #(pub fn #clear_identifiers(&mut self, entity_id: usize) {
                 self.#field_identifiers.write().unwrap()[entity_id as usize] = None;
             })*
 
@@ -187,7 +187,7 @@ pub fn world(attr: TokenStream, item: TokenStream) -> TokenStream {
                 *self.#ignore_identifiers.write().unwrap() = None;
             })*
 
-            #(pub fn #clear_many_identifiers(&mut self, entity_ids: &Vec<u32>) {
+            #(pub fn #clear_many_identifiers(&mut self, entity_ids: &Vec<usize>) {
                 let mut component = self.#field_identifiers.write().unwrap();
                 for entity_id in entity_ids {
                     component[*entity_id as usize] = None;
@@ -232,6 +232,7 @@ struct FunctionArgs {
     global_write_components: Vec<Ident>,
     global_write_assignments: HashMap<Ident, Expr>,
     filters: Vec<ExprBinary>,
+    enumerated: bool,
 }
 
 impl Parse for FunctionArgs {
@@ -243,6 +244,7 @@ impl Parse for FunctionArgs {
         let mut global_write_components: Vec<Ident> = Vec::new();
         let mut global_write_assignments: HashMap<Ident, Expr> = HashMap::new();
         let mut filters: Vec<ExprBinary> = Vec::new();
+        let mut enumerated: bool = false;
 
         let parts = input.parse_terminated(Expr::parse, Token![,])?;
         for part in parts.iter() {
@@ -356,6 +358,7 @@ impl Parse for FunctionArgs {
                                         _ => (),
                                     }
                                 },
+                                "enumerate" => enumerated = true,
                                 _ => (),
                             }
                         }
@@ -379,6 +382,7 @@ impl Parse for FunctionArgs {
             global_write_components,
             global_write_assignments,
             filters,
+            enumerated,
         })
     }
 }
@@ -405,16 +409,16 @@ pub fn system(attr: TokenStream, item: TokenStream) -> TokenStream {
         1 => {
             let read_component = &read_components[0];
             (
-                quote!{ #read_component },
-                quote!{#read_component.iter()}
+                quote!{ (entity_id, #read_component) },
+                quote!{#read_component.iter().enumerate()}
             )
         },
         _ => {
             let read_component1 = &read_components[0];
             let read_component2 = &read_components[1];
             (
-                quote!{ (#read_component1, #read_component2) },
-                quote!{ #read_component1.iter().zip(#read_component2.iter())}
+                quote!{ ((entity_id, #read_component1), #read_component2) },
+                quote!{ #read_component1.iter().enumerate().zip(#read_component2.iter())}
             )
         },
     };
@@ -432,16 +436,16 @@ pub fn system(attr: TokenStream, item: TokenStream) -> TokenStream {
             1 => {
                 let write_component = &write_components[0];
                 (
-                    quote!{ #write_component },
-                    quote!{#write_component.iter_mut()}
+                    quote!{ (entity_id, #write_component) },
+                    quote!{#write_component.iter_mut().enumerate()}
                 )
             },
             _ => {
                 let write_component1 = &write_components[0];
                 let write_component2 = &write_components[1];
                 (
-                    quote!{ (#write_component1, #write_component2) },
-                    quote!{#write_component1.iter_mut().zip(#write_component2.iter_mut())}
+                    quote!{ ((entity_id, #write_component1), #write_component2) },
+                    quote!{#write_component1.iter_mut().enumerate().zip(#write_component2.iter_mut())}
                 )
             },
         };
@@ -462,20 +466,16 @@ pub fn system(attr: TokenStream, item: TokenStream) -> TokenStream {
     let combined_length = read_components.len() + write_components.len();
     match combined_length {
         0 => (),
-        1 => filter = quote!{ .filter(|v| v.is_some()) },
-        2 => filter = quote!{ .filter(|v| v.0.is_some() && v.1.is_some()) },
+        1 => filter = quote!{ .filter(|v| v.1.is_some()) },
+        2 => filter = quote!{ .filter(|v| v.0.1.is_some() && v.1.is_some()) },
         _ => {
             filter = quote!{ v.1.is_some() };
-            for i in 1..combined_length {
+            for i in 1..(combined_length-1) {
                 filter = quote!{ #filter && v };
                 for _ in 0..i {
                     filter = quote!{ #filter.0 };
                 }
-                if i == combined_length - 1 {
-                    filter = quote!{ #filter.is_some() };
-                } else {
-                    filter = quote!{ #filter.1.is_some() };
-                }
+                filter = quote!{ #filter.1.is_some() };
             }
             filter = quote!{ .filter(|v| #filter) };
         },
@@ -501,8 +501,14 @@ pub fn system(attr: TokenStream, item: TokenStream) -> TokenStream {
                 }
             }
         }
+    } else if function_args.enumerated {
+        quote!{ 
+            for entity_id in 0..world.entities.read().unwrap().len() {
+                #body
+            }
+        }
     } else {
-        quote!{ #body }
+        quote!{ }
     };
 
     let mut global_write_assignments = quote!{ };

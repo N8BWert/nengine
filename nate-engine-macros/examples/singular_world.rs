@@ -15,6 +15,7 @@ pub struct SingularWorld {
 
 #[system(world=SingularWorld, read=[position], _write=[canvas])]
 fn write_position_to_canvas() {
+    println!("Updating {}", entity_id);
     let position = (position.0.clamp(0.0, 9.0) as usize, position.1.clamp(0.0, 9.0) as usize);
     canvas[position.1][position.0] = true;
 }

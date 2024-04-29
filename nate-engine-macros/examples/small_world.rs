@@ -37,6 +37,11 @@ fn read_velocities() {
     println!("Velocity: {:?}", player_velocity);
 }
 
+#[system(world=SmallWorld, enumerate=true)]
+fn log_entities() {
+    println!("Entity: {}", entity_id);
+}
+
 fn main() {
     let world = SmallWorld::new();
     {
@@ -50,4 +55,5 @@ fn main() {
     read_velocities(world.clone());
     randomize_player_velocities(world.clone());
     read_velocities(world.clone());
+    log_entities(world.clone());
 }
