@@ -317,7 +317,7 @@ dependencies = [
  "clap",
  "crossterm",
  "nate-engine-core 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "nate-engine-macros 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "nate-engine-macros 0.1.1",
  "rand",
  "ratatui",
 ]
@@ -343,21 +343,21 @@ dependencies = [
 [[package]]
 name = "nate-engine-macros"
 version = "0.1.1"
-dependencies = [
- "proc-macro2",
- "quote",
- "rand",
- "syn",
-]
-
-[[package]]
-name = "nate-engine-macros"
-version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fbf2b738ff89deb7a2a0ff527345125956f06efa2c8fcb506df39bc42adfbc85"
 dependencies = [
  "proc-macro2",
  "quote",
+ "syn",
+]
+
+[[package]]
+name = "nate-engine-macros"
+version = "0.1.2"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "rand",
  "syn",
 ]
 
