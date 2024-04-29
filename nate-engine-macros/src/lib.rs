@@ -152,6 +152,18 @@ pub fn world(attr: TokenStream, item: TokenStream) -> TokenStream {
                 new_entity_ids
             }
 
+            pub fn remove_entity(&mut self, entity_id: u32) {
+                self.entities.write().unwrap().remove(entity_id as usize);
+                #(self.#field_identifiers.write().unwrap().remove(entity_id as usize));*;
+            }
+
+            pub fn remove_entities(&mut self, entity_ids: Vec<u32>) {
+                for entity_id in entity_ids {
+                    self.entities.write().unwrap().remove(entity_id as usize);
+                    #(self.#field_identifiers.write().unwrap().remove(entity_id as usize));*;
+                }
+            }
+
             #(pub fn #setter_identifiers(&mut self, entity_id: u32, #field_identifiers: #field_types) {
                 self.#field_identifiers.write().unwrap()[entity_id as usize] = Some(#field_identifiers);
             })*

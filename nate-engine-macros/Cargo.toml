@@ -1,6 +1,6 @@
 [package]
 name = "nate-engine-macros"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Nathaniel Wert <n8.wert.b@gmail.com>"]
 description = "Macros for a game engine I created just for fun"
