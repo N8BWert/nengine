@@ -5,6 +5,7 @@ edition = "2021"
 authors = ["Nathaniel Wert <n8.wert.b@gmail.com>"]
 description = "Fun High Level ECS Game Engine I Wrote"
 readme = "README.md"
+license = "MIT OR Apache-2.0"
 
 [workspace]
 members = [
