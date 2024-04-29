@@ -4,7 +4,7 @@ use proc_macro2::Span;
 use quote::{format_ident, quote};
 use syn::{parse::{Parse, ParseStream, Result}, parse_macro_input, Block, Error, Expr, ExprBinary, FnArg, Ident, ItemFn, ItemStruct, Token};
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 struct IgnoreArgs {
     ignore_identifiers: HashSet<String>,
@@ -81,19 +81,51 @@ pub fn world(attr: TokenStream, item: TokenStream) -> TokenStream {
     let set_ignore_identifiers: Vec<Ident> = ignore_identifiers.iter().map(|v| format_ident!("set_{}", v)).collect();
     let clear_ignore_identifiers: Vec<Ident> = ignore_identifiers.iter().map(|v| format_ident!("clear_{}", v)).collect();
 
+    let entity_fields = if field_identifiers.len() > 0 {
+        quote!{
+            #(pub #field_identifiers: std::sync::Arc<std::sync::RwLock<std::vec::Vec<std::option::Option<#field_types>>>>),*,
+        }
+    } else {
+        quote!{ }
+    };
+
+    let entity_initializers = if field_identifiers.len() > 0 {
+        quote!{
+            #(#field_identifiers: std::sync::Arc::new(std::sync::RwLock::new(std::vec::Vec::new()))),*,
+        }
+    } else {
+        quote!{ }
+    };
+
+    let global_fields = if ignore_identifiers.len() > 0 {
+        quote!{
+            #(pub #ignore_identifiers: std::sync::Arc<std::sync::RwLock<std::option::Option<#ignore_types>>>),*,
+        }
+    } else {
+        quote!{ }
+    };
+
+    let global_initializers = if ignore_identifiers.len() > 0 {
+        quote!{
+            #(#ignore_identifiers: std::sync::Arc::new(std::sync::RwLock::new(None))),*,
+        }
+    } else {
+        quote!{ }
+    };
+
     TokenStream::from(quote!{
         pub struct #item_name {
             entities: std::sync::Arc<std::sync::RwLock<std::vec::Vec<u32>>>,
-            #(pub #field_identifiers: std::sync::Arc<std::sync::RwLock<std::vec::Vec<std::option::Option<#field_types>>>>),*,
-            #(pub #ignore_identifiers: std::sync::Arc<std::sync::RwLock<std::option::Option<#ignore_types>>>),*
+            #entity_fields
+            #global_fields
         }
 
         impl #item_name {
             pub fn new() -> std::sync::Arc<std::sync::RwLock<Self>> {
                 std::sync::Arc::new(std::sync::RwLock::new(Self {
                     entities: std::sync::Arc::new(std::sync::RwLock::new(std::vec::Vec::new())),
-                    #(#field_identifiers: std::sync::Arc::new(std::sync::RwLock::new(std::vec::Vec::new()))),*,
-                    #(#ignore_identifiers: std::sync::Arc::new(std::sync::RwLock::new(None))),*
+                    #entity_initializers
+                    #global_initializers
                 }))
             }
 
@@ -186,6 +218,7 @@ struct FunctionArgs {
     global_read_components: Vec<Ident>,
     write_components: Vec<Ident>,
     global_write_components: Vec<Ident>,
+    global_write_assignments: HashMap<Ident, Expr>,
     filters: Vec<ExprBinary>,
 }
 
@@ -196,6 +229,7 @@ impl Parse for FunctionArgs {
         let mut global_read_components: Vec<Ident> = Vec::new();
         let mut write_components: Vec<Ident> = Vec::new();
         let mut global_write_components: Vec<Ident> = Vec::new();
+        let mut global_write_assignments: HashMap<Ident, Expr> = HashMap::new();
         let mut filters: Vec<ExprBinary> = Vec::new();
 
         let parts = input.parse_terminated(Expr::parse, Token![,])?;
@@ -289,10 +323,21 @@ impl Parse for FunctionArgs {
                                         },
                                         Expr::Array(array) => {
                                             for element in array.elems.iter() {
-                                                if let Expr::Path(path) = element {
-                                                    if let Some(segment) = path.path.segments.first() {
-                                                        global_write_components.push(segment.ident.clone());
-                                                    }
+                                                match element {
+                                                    Expr::Path(path) => {
+                                                        if let Some(segment) = path.path.segments.first() {
+                                                            global_write_components.push(segment.ident.clone());
+                                                        }
+                                                    },
+                                                    Expr::Assign(assignment) => {
+                                                        if let Expr::Path(path) = assignment.left.as_ref() {
+                                                            if let Some(segment) = path.path.segments.first() {
+                                                                global_write_components.push(segment.ident.clone());
+                                                                global_write_assignments.insert(segment.ident.clone(), *assignment.right.clone());
+                                                            }
+                                                        }
+                                                    },
+                                                    _ => (),
                                                 }
                                             }
                                         },
@@ -320,6 +365,7 @@ impl Parse for FunctionArgs {
             global_read_components,
             write_components,
             global_write_components,
+            global_write_assignments,
             filters,
         })
     }
@@ -447,6 +493,15 @@ pub fn system(attr: TokenStream, item: TokenStream) -> TokenStream {
         quote!{ #body }
     };
 
+    let mut global_write_assignments = quote!{ };
+    for key in function_args.global_write_assignments.keys() {
+        let value = function_args.global_write_assignments.get(key).unwrap();
+        global_write_assignments = quote!{
+            #global_write_assignments
+            *#key = #value;
+        };
+    }
+
 
     TokenStream::from(quote!{
         pub fn #fn_name(world: std::sync::Arc<std::sync::RwLock<#world_type>>, #(#fn_args),*) {
@@ -457,6 +512,7 @@ pub fn system(attr: TokenStream, item: TokenStream) -> TokenStream {
             #(let #global_read_components = #global_read_refs.as_ref().expect("Global Components must not be None"));*;
             #(let mut #global_write_refs = world.#global_write_components.write().unwrap());*;
             #(let mut #global_write_components = #global_write_refs.as_mut().expect("Global Components must not be None"));*;
+            #global_write_assignments
 
             #body
         }

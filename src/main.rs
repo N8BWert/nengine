@@ -84,12 +84,7 @@ fn acceleration_update_system() {
     *acceleration = (left_right, up_down);
 }
 
-#[system(world=ToyWorld, _write=[canvas])]
-fn clear_canvas_system() {
-    *canvas = [[Status::Dead; WIDTH as usize]; HEIGHT as usize];
-}
-
-#[system(world=ToyWorld, read=[position, health], _write=[canvas])]
+#[system(world=ToyWorld, read=[position, health], _write=[canvas=[[Status::Dead; WIDTH as usize]; HEIGHT as usize]])]
 fn update_canvas_system() {
     let x = (position.0.clamp(MIN_X, MAX_X) + WIDTH / 2) as usize;
     let y = (position.1.clamp(MIN_Y, MAX_Y) + HEIGHT / 2) as usize;
