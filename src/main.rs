@@ -2,7 +2,7 @@
 //! Example Program completing the same ecs-toy example I did earlier on my GitHub, but now with my engine
 //! 
 
-use std::{io::{stdout, Result, Stdout}, time::{SystemTime, UNIX_EPOCH, Duration}};
+use std::{io::{stdout, Result, Stdout}, time::Duration};
 
 use clap::Parser;
 
@@ -54,21 +54,8 @@ pub struct ToyWorld {
     canvas: [[Status; WIDTH as usize]; HEIGHT as usize],
 }
 
-#[system(world=ToyWorld, read=[velocity], write=[position])]
+#[system(world=ToyWorld, write=[position, velocity, acceleration])]
 fn position_update_system() {
-    *position = (
-        (position.0 + velocity.0).clamp(MIN_X, MAX_X),
-        (position.1 + velocity.1).clamp(MIN_Y, MAX_Y)
-    );
-}
-
-#[system(world=ToyWorld, read=[acceleration], write=[velocity])]
-fn velocity_update_system() {
-    *velocity = (velocity.0 + acceleration.0, velocity.1 + acceleration.1);
-}
-
-#[system(world=ToyWorld, write=[acceleration])]
-fn acceleration_update_system() {
     let left_right = match random::<usize>() % 4 {
         0 => 1,
         1 => -1,
@@ -82,6 +69,10 @@ fn acceleration_update_system() {
     };
 
     *acceleration = (left_right, up_down);
+
+    *velocity = (velocity.0 + acceleration.0, velocity.1 + acceleration.1);
+
+    *position = (position.0 + velocity.0, position.1 + velocity.1);
 }
 
 #[system(world=ToyWorld, read=[position, health], _write=[canvas=[[Status::Dead; WIDTH as usize]; HEIGHT as usize]])]
@@ -118,14 +109,12 @@ fn alive_entities_display_system() {
 
 pub struct ToyTerminalRenderer {
     terminal: Terminal<CrosstermBackend<Stdout>>,
-    last_render: u128,
 }
 
 impl ToyTerminalRenderer {
     pub fn new(terminal: Terminal<CrosstermBackend<Stdout>>) -> Self {
         Self {
             terminal,
-            last_render: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis(),
         }
     }
 }
@@ -136,15 +125,6 @@ impl Renderer<ToyWorld> for ToyTerminalRenderer {
     fn render(&mut self, world: std::sync::Arc<std::sync::RwLock<ToyWorld>>) -> std::prelude::v1::Result<(), Self::Error> {
         let world = world.read().unwrap();
 
-        let then = self.last_render;
-        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
-        self.last_render = now;
-        let frame_rate = if now - then == 0 {
-            60
-        } else {
-            1000 / (now - then)
-        };
-
         let _err = self.terminal.draw(|frame| {
             let area = frame.size();
             frame.render_widget(
@@ -154,9 +134,8 @@ impl Renderer<ToyWorld> for ToyTerminalRenderer {
                         .borders(Borders::ALL)
                         .title(
                             format!(
-                                "Living Entities: {} ------ ({} fps)",
+                                "Living Entities: {}",
                                 (*world.living_entities.read().unwrap()).unwrap(),
-                                frame_rate,
                             )
                         )
                     )
@@ -238,16 +217,14 @@ fn main() -> Result<()> {
     terminal.clear()?;
 
     let mut engine = Engine::new(
-        1,
+        30,
         args.workers,
         world,
         vec![
-            (position_update_system, 100),
-            (velocity_update_system, 100),
-            (acceleration_update_system, 100),
-            (update_canvas_system, 100),
-            (health_update_system, 100),
-            (alive_entities_display_system, 100),
+            (position_update_system, 100_000),
+            (update_canvas_system, 100_000),
+            (health_update_system, 100_000),
+            (alive_entities_display_system, 100_000),
         ],
         Box::new(ToyTerminalRenderer::new(terminal))
     );

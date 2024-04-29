@@ -434,7 +434,7 @@ pub fn system(attr: TokenStream, item: TokenStream) -> TokenStream {
             },
         };
         if write_components.len() > 2 {
-            for write_component in write_components.iter() {
+            for write_component in write_components[2..].iter() {
                 items = quote!{ (#items, #write_component) };
                 iterators = quote!{#iterators.zip(#write_component.iter_mut())};
             }
