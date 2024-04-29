@@ -1,6 +1,6 @@
 [package]
 name = "nate-engine"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 authors = ["Nathaniel Wert <n8.wert.b@gmail.com>"]
 description = "Fun High Level ECS Game Engine I Wrote"
@@ -17,7 +17,7 @@ members = [
 
 [dependencies]
 nate-engine-core = "0.1.0"
-nate-engine-macros = "0.1.1"
+nate-engine-macros = "0.1.2"
 
 
 [dev-dependencies]
