@@ -189,7 +189,7 @@ fn main() -> Result<()> {
     let world = ToyWorld::new();
     {
         let mut world = world.write().unwrap();
-        let entity_ids = world.add_entities(args.entities as u32);
+        let entity_ids = world.add_entities(args.entities);
 
         let positions = entity_ids.iter().map(|_v| (random::<isize>().clamp(MIN_X, MAX_X), random::<isize>().clamp(MIN_Y, MAX_Y))).collect();
         world.set_positions(&entity_ids, positions);
