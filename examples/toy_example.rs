@@ -6,8 +6,7 @@ use std::{io::{stdout, Result, Stdout}, time::Duration};
 
 use clap::Parser;
 
-use nengine::{Engine, Renderer};
-use nengine_macros::{system, world};
+use nate_engine::{Engine, Renderer, system, world};
 
 use rand::random;
 

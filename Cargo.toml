@@ -1,20 +1,26 @@
 [package]
-name = "nengine-base"
+name = "nate-engine"
 version = "0.1.0"
 edition = "2021"
+authors = ["Nathaniel Wert <n8.wert.b@gmail.com>"]
+description = "Fun High Level ECS Game Engine I Wrote"
+readme = "README.md"
 
 [workspace]
 members = [
-    "nengine",
-    "nengine-macros"
+    "nate-engine-core",
+    "nate-engine-macros"
 ]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-clap = { version = "4.5.4", features = ["derive"] }
-crossterm = "0.27.0"
-nengine = { path = "nengine" }
-nengine-macros = { path = "nengine-macros" }
+nate-engine-core = { path = "nate-engine-core" }
+nate-engine-macros = { path = "nate-engine-macros" }
+
+
+[dev-dependencies]
 rand = "0.8.5"
 ratatui = "0.26.2"
+clap = { version = "4.5.4", features = ["derive"] }
+crossterm = "0.27.0"

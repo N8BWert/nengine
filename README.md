@@ -1,8 +1,8 @@
-# NEngine
+# Nate-Engine
 
 ## Description
 
-NEnging is a proof of concept project I'm working on when I'm bored.  The main concept is that NEngine is a game engine backed by the entity component system (ECS) model.  I'm probably going to use it to make a few tui games or something but I'd highly recommend against anyone else using as it is purely a test and most real projects should probably use something like bevy.
+Nate-Engine is a proof of concept project I'm working on when I'm bored.  The main concept is that Nate-Engine is a game engine backed by the entity component system (ECS) model.  I'm probably going to use it to make a few tui games or something but I'd highly recommend against anyone else using as it is purely a test and most real projects should probably use something like bevy.
 
 ## Goal
 

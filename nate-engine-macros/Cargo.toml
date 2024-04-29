@@ -1,7 +1,10 @@
 [package]
-name = "nengine-macros"
+name = "nate-engine-macros"
 version = "0.1.0"
 edition = "2021"
+authors = ["Nathaniel Wert <n8.wert.b@gmail.com>"]
+description = "Macros for a game engine I created just for fun"
+readme = "../REAMDE.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

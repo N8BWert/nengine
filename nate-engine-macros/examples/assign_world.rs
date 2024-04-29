@@ -2,7 +2,7 @@
 //! Assignment World to Demonstrate Assigning Component values before systems
 //! 
 
-use nengine_macros::{system, world};
+use nate_engine_macros::{system, world};
 
 #[world(singular=[canvas])]
 pub struct AssignWorld {

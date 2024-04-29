@@ -2,7 +2,7 @@
 //! Test Program using a small world to test the functionality of the macros
 //! 
 
-use nengine_macros::{system, world};
+use nate_engine_macros::{system, world};
 
 #[world]
 pub struct SmallWorld {

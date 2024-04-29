@@ -2,7 +2,7 @@
 //! World that uses the ignore parameter of the macro
 //! 
 
-use nengine_macros::{system, world};
+use nate_engine_macros::{system, world};
 
 use rand::random;
 

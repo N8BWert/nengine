@@ -311,7 +311,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "nengine"
+name = "nate-engine"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "crossterm",
+ "nate-engine-core",
+ "nate-engine-macros",
+ "rand",
+ "ratatui",
+]
+
+[[package]]
+name = "nate-engine-core"
 version = "0.1.0"
 dependencies = [
  "ctrlc",
@@ -319,19 +331,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "nengine-base"
-version = "0.1.0"
-dependencies = [
- "clap",
- "crossterm",
- "nengine",
- "nengine-macros",
- "rand",
- "ratatui",
-]
-
-[[package]]
-name = "nengine-macros"
+name = "nate-engine-macros"
 version = "0.1.0"
 dependencies = [
  "proc-macro2",
