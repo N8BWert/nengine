@@ -316,7 +316,7 @@ version = "0.1.5"
 dependencies = [
  "clap",
  "crossterm",
- "nate-engine-core 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "nate-engine-core 0.1.1",
  "nate-engine-macros 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand",
  "ratatui",
@@ -325,6 +325,8 @@ dependencies = [
 [[package]]
 name = "nate-engine-core"
 version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bdea29b75b1e98b6a06da0a908fb44a263135c442f840ba1129f0152f0c69285"
 dependencies = [
  "ctrlc",
  "threadpool",
@@ -332,9 +334,7 @@ dependencies = [
 
 [[package]]
 name = "nate-engine-core"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bdea29b75b1e98b6a06da0a908fb44a263135c442f840ba1129f0152f0c69285"
+version = "0.1.2"
 dependencies = [
  "ctrlc",
  "threadpool",

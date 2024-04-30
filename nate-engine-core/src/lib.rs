@@ -44,7 +44,7 @@ impl<WORLD: Send + Sync + 'static, E: Debug + 'static> Engine<WORLD, E> {
         renderer: Box<dyn Renderer<WORLD, Error=E>>,
     ) -> Self {
         if workers < 2 {
-            panic!("NEnginer Requires at least 2 Threads to Execute");
+            panic!("The Engine Requires at least 2 Threads to Execute");
         }
 
         let mut scheduling_queue = BinaryHeap::new();
@@ -52,7 +52,7 @@ impl<WORLD: Send + Sync + 'static, E: Debug + 'static> Engine<WORLD, E> {
             scheduling_queue.push(SystemWrapper{
                 system,
                 update_rate,
-                priority: 0,
+                priority: update_rate,
             })
         }
 
@@ -106,18 +106,9 @@ impl<WORLD: Send + Sync + 'static, E: Debug + 'static> Engine<WORLD, E> {
         });
 
         while c_running.load(Ordering::SeqCst) {
-            let current_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_micros();
-            let delta_time = current_time - start_time;
+            if let (sleep_time, Some(mut system_wrapper)) = Self::get_next_job(&mut self.scheduling_queue, start_time) {
+                thread::sleep(Duration::from_micros(sleep_time as u64));
 
-            if let Some(system_wrapper) = self.scheduling_queue.peek() {
-                let next_system_start_time = system_wrapper.priority;
-                if delta_time > next_system_start_time {
-                    let sleep_time = next_system_start_time.saturating_sub(current_time);
-                    thread::sleep(Duration::from_micros(sleep_time as u64));
-                }
-    
-                // Get and update the next system
-                let mut system_wrapper = self.scheduling_queue.pop().unwrap();
                 let c_world = self.world.clone();
                 self.pool.execute(move || (system_wrapper.system)(c_world));
                 system_wrapper.priority += system_wrapper.update_rate;
@@ -131,5 +122,48 @@ impl<WORLD: Send + Sync + 'static, E: Debug + 'static> Engine<WORLD, E> {
         };
 
         self.renderer.replace(renderer);
+    }
+
+    /// Wait for the next job to run and get it off the scheduling queue
+    fn get_next_job(scheduling_queue: &mut BinaryHeap<SystemWrapper<WORLD>>, start_time: u128) -> (u128, Option<SystemWrapper<WORLD>>) {
+        let elapsed_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_micros() - start_time;
+        if let Some(system_wrapper) = scheduling_queue.pop() {
+            let next_start_time = system_wrapper.priority;
+            println!("Elapsed Time: {} --- Next Start Time: {}", elapsed_time, next_start_time);
+            if elapsed_time < next_start_time {
+                let sleep_time = next_start_time.saturating_sub(elapsed_time);
+                return (sleep_time, Some(system_wrapper));
+            }
+            return (0, Some(system_wrapper));
+        }
+        (0, None)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    struct FakeWorld {}
+
+    fn test<WORLD: Send + Sync + 'static>(_world: Arc<RwLock<WORLD>>) {
+        println!("Hello World");
+    }
+
+    #[test]
+    fn text_get_next_job_time() {
+        let start_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_micros();
+
+        let mut scheduling_queue: BinaryHeap<SystemWrapper<FakeWorld>> = BinaryHeap::new();
+        scheduling_queue.push(SystemWrapper{
+            system: test,
+            update_rate: 1_000_000,
+            priority: 1_000_000,
+        });
+
+        let (time, next_job) = Engine::<FakeWorld, String>::get_next_job(&mut scheduling_queue, start_time);
+        assert!(next_job.is_some());
+        assert!(900_000 < time && time < 1_000_000);
     }
 }
