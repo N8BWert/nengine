@@ -129,7 +129,6 @@ impl<WORLD: Send + Sync + 'static, E: Debug + 'static> Engine<WORLD, E> {
         let elapsed_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_micros() - start_time;
         if let Some(system_wrapper) = scheduling_queue.pop() {
             let next_start_time = system_wrapper.priority;
-            println!("Elapsed Time: {} --- Next Start Time: {}", elapsed_time, next_start_time);
             if elapsed_time < next_start_time {
                 let sleep_time = next_start_time.saturating_sub(elapsed_time);
                 return (sleep_time, Some(system_wrapper));
