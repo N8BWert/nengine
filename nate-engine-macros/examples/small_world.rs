@@ -37,6 +37,11 @@ fn read_velocities() {
     println!("Velocity: {:?}", player_velocity);
 }
 
+#[system(world=SmallWorld)]
+fn print_stuff() {
+    println!("This runs once");
+}
+
 #[system(world=SmallWorld, enumerate=true)]
 fn log_entities() {
     println!("Entity: {}", entity_id);
@@ -56,4 +61,5 @@ fn main() {
     randomize_player_velocities(world.clone());
     read_velocities(world.clone());
     log_entities(world.clone());
+    print_stuff(world.clone());
 }

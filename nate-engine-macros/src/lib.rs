@@ -508,7 +508,7 @@ pub fn system(attr: TokenStream, item: TokenStream) -> TokenStream {
             }
         }
     } else {
-        quote!{ }
+        quote!{ #body }
     };
 
     let mut global_write_assignments = quote!{ };
