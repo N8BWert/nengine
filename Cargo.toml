@@ -1,6 +1,6 @@
 [package]
 name = "nate-engine"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 authors = ["Nathaniel Wert <n8.wert.b@gmail.com>"]
 description = "Fun High Level ECS Game Engine I Wrote"
