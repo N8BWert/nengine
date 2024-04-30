@@ -16,7 +16,7 @@ members = [
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-nate-engine-core = "0.1.0"
+nate-engine-core = "0.1.1"
 nate-engine-macros = "0.1.4"
 
 

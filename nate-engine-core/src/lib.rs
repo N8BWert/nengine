@@ -109,18 +109,20 @@ impl<WORLD: Send + Sync + 'static, E: Debug + 'static> Engine<WORLD, E> {
             let current_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_micros();
             let delta_time = current_time - start_time;
 
-            let next_system_start_time = self.scheduling_queue.peek().unwrap().priority;
-            if delta_time > next_system_start_time {
-                let sleep_time = next_system_start_time.saturating_sub(current_time);
-                thread::sleep(Duration::from_micros(sleep_time as u64));
+            if let Some(system_wrapper) = self.scheduling_queue.peek() {
+                let next_system_start_time = system_wrapper.priority;
+                if delta_time > next_system_start_time {
+                    let sleep_time = next_system_start_time.saturating_sub(current_time);
+                    thread::sleep(Duration::from_micros(sleep_time as u64));
+                }
+    
+                // Get and update the next system
+                let mut system_wrapper = self.scheduling_queue.pop().unwrap();
+                let c_world = self.world.clone();
+                self.pool.execute(move || (system_wrapper.system)(c_world));
+                system_wrapper.priority += system_wrapper.update_rate;
+                self.scheduling_queue.push(system_wrapper);
             }
-
-            // Get and update the next system
-            let mut system_wrapper = self.scheduling_queue.pop().unwrap();
-            let c_world = self.world.clone();
-            self.pool.execute(move || (system_wrapper.system)(c_world));
-            system_wrapper.priority += system_wrapper.update_rate;
-            self.scheduling_queue.push(system_wrapper);
         }
 
         let renderer = match render_thread_handle.join() {
