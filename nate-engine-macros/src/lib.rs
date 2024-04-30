@@ -174,8 +174,8 @@ pub fn world(attr: TokenStream, item: TokenStream) -> TokenStream {
 
             #(pub fn #set_many_identifiers(&mut self, entity_ids: &Vec<usize>, mut #plural_identifiers: Vec<#field_types>) {
                 let mut component = self.#field_identifiers.write().unwrap();
-                for (i, #field_identifiers) in #plural_identifiers.drain(..).enumerate() {
-                    component[i] = Some(#field_identifiers);
+                for (#field_identifiers, entity_id) in #plural_identifiers.drain(..).zip(entity_ids.iter()) {
+                    component[*entity_id] = Some(#field_identifiers);
                 }
             })*
 
