@@ -6,6 +6,7 @@ authors = ["Nathaniel Wert <n8.wert.b@gmail.com>"]
 description = "Fun High Level ECS Game Engine I Wrote"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
+repository = "https://github.com/N8BWert/nengine"
 
 [workspace]
 members = [
