@@ -116,3 +116,9 @@ fn read_canvas_and_exit() {
 ```
 
 Would allows the user to access canvas (through reading) and write to exit
+
+## Projects
+
+Below is a list of projects using the game engine.
+
+* [td-tui](https://github.com/N8BWert/td-tui): A terminal-based tower defense minigame.
