@@ -6,6 +6,7 @@ authors = ["Nathaniel Wert <n8.wert.b@gmail.com>"]
 description = "Core Code for a game engine I created just for fun"
 readme = "../README.md"
 license = "MIT OR Apache-2.0"
+repository = "https://github.com/N8BWert/nengine"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
